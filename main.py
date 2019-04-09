@@ -74,9 +74,9 @@ class SignUpHandler(tornado.web.RequestHandler):
 	Finally, sets the secure cookie and logs in the user.
 	"""
 	async def post(self):
-		self.username = self.get_argument("username")
-		self.email = self.get_argument("email")
-		self.password = self.get_argument("psword")
+		self.username = self.get_argument("username").lower()
+		self.email = self.get_argument("email").lower()
+		self.password = self.get_argument("psword").lower()
 
 		if (re.fullmatch('^(?=.{8,20}$)(?![_.])(?!.*[_.]{2})[a-zA-Z0-9._]+(?<![_.])$', self.username) == None): #Found at :https://stackoverflow.com/questions/12018245/regular-expression-to-validate-username
 			self.render("signup.html",error="Your username doesn't follow our username rules. Please fix it.")
@@ -86,13 +86,11 @@ class SignUpHandler(tornado.web.RequestHandler):
 			return
 
 		does_it_exist = self.check_if_exists()
-
 		if(does_it_exist!=None):
 			self.render("signup.html",error=does_it_exist)
 			return
 
 		hashed_password = self.hash_password()
-
 		await self.do_insert(hashed_password)
 
 		self.set_secure_cookie("user", self.username)
@@ -101,7 +99,31 @@ class SignUpHandler(tornado.web.RequestHandler):
 
 class SignInHandler(tornado.web.RequestHandler):
 	def get(self):
-		self.render('signin.html')
+		self.render('signin.html',error='')
+
+	def check_database(self):
+		ph = PasswordHasher()
+		error = None
+		document_username = sync_db.users.find_one({'username':self.username})
+		if(document_username == None):
+			error = "User doesn't exist. Please sign up first!"
+		elif(ph.verify(document_username['password'],self.password)==False):
+			error = "Password is wrong, try again!"
+		return error			
+
+	def post(self):
+		self.username = self.get_argument("username").lower()
+		self.password = self.get_argument("psword").lower()
+
+		check_details = self.check_database()
+		if(check_details!=None):
+			self.render('signin.html',error=check_details)
+			return
+
+		self.set_secure_cookie("user", self.username)
+		self.redirect('/postlogin')
+		return
+
 
 class IndexHandler(tornado.web.RequestHandler):
 	def get(self):

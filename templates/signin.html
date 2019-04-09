@@ -1,1 +1,29 @@
-HELLO
+<!DOCTYPE html>
+<head>
+	<link rel="stylesheet" href=" {{ static_url('index.css') }}">
+	{% module bootstrap() %}
+	<title> Sign In</title>
+</head>
+<body>
+{% if error %}
+<span style="color: red">Error: {{ error }}</span><p>
+{% end %}
+<form method="post">
+	<div class="container signupform">
+		<h1> Sign In </h1>
+
+		<label for="username"><b>Username</b></label>
+		<input type="text" placeholder="Enter your username" name="username" required>
+
+		<label for="psword"><b>Password</b></label>
+		<input type="password" placeholder="Enter your password" name="psword">
+		
+		{% module xsrf_form_html() %}
+
+		<div class="text-center signupbtn">
+			<button type="submit" class="text-center">Sign Up</button>
+		</div>
+	</div>
+</form>
+</body>
+</html>
