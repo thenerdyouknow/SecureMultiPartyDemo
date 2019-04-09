@@ -1,0 +1,18 @@
+#index{
+	margin : 30px;
+}
+
+input[type=text], input[type=password] {
+  width: 100%;
+  padding: 10px;
+  margin : 10px;
+  display: inline-block;
+}
+
+.signupbtn{
+	margin:20px;
+}
+
+.signupform{
+	border: 5px solid #f1f1f1;
+}

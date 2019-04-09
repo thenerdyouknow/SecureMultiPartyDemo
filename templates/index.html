@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+	<head>
+		<link rel="stylesheet" href=" {{ static_url('index.css') }}">
+		{% module bootstrap() %}
+		<title> Polling Application</title>
+	</head>
+	<body>
+		<div class="container text-center">
+			<div id="index">
+				<h1> Welcome to Untitled Polling Application</h1>
+			</div>
+			<div id="index">
+				<p>Before you can start creating polls, you need to register for our website(or else it becomes difficult to understand where you're coming from, y'know)</p>
+				<p> (or if you're already a member you could always just sign in)</p>
+			</div>
+			<div id="index">
+				<form action="/signup">
+					<button id="signup"> Sign me up!</button>
+				</form>
+			</div>
+			<div id="index">
+				<form action="/signin">
+					<button id="signin"> Already a member, sign me in!</button>
+				</form>
+			</div>
+
+	</div>
