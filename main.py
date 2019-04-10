@@ -15,10 +15,17 @@ from tornado.options import define, options
 #Setting options for the server
 define("port", default=8100, help="run on the given port", type=int)
 
+""" BaseHandler():
+Class that'll be used later when @tornado.web.authenticated is needed for POST requests.
+"""
 
 class BaseHandler(tornado.web.RequestHandler):
 	def get_current_user(self):
 		return self.get_secure_cookie("user")
+
+""" SignUpHandler():
+Class that handles /signup
+"""
 
 class SignUpHandler(tornado.web.RequestHandler):
 	"""	get():
@@ -97,10 +104,22 @@ class SignUpHandler(tornado.web.RequestHandler):
 		self.redirect('/postlogin')
 		return
 
+""" SignInHandler():
+Class that handles /signin
+"""
+
 class SignInHandler(tornado.web.RequestHandler):
+	""" get():
+	Renders the Sign In page when the user arrives at /signin
+	"""
 	def get(self):
 		self.render('signin.html',error='')
 
+	""" check_database():
+	Creates an instance of PasswordHasher, finds if there is any document in the database with the 
+	username submitted, verifies the password with the hashed password inside the database if the 
+	document exists, returns None or the error message.
+	"""
 	def check_database(self):
 		ph = PasswordHasher()
 		error = None
@@ -111,6 +130,11 @@ class SignInHandler(tornado.web.RequestHandler):
 			error = "Password is wrong, try again!"
 		return error			
 
+	""" post():
+	Sets the class variables and checks the database to verify if the credentials exist and
+	are valid, renders the Sign In page with the error if they don't.
+	Finally, sets the secure cookie and redirects to /postlogin.
+	"""
 	def post(self):
 		self.username = self.get_argument("username").lower()
 		self.password = self.get_argument("psword").lower()
@@ -124,12 +148,23 @@ class SignInHandler(tornado.web.RequestHandler):
 		self.redirect('/postlogin')
 		return
 
+""" IndexHandler():
+Class that handles /
+"""
 
 class IndexHandler(tornado.web.RequestHandler):
 	def get(self):
 		self.render('index.html')
 
+""" PostLoginHandler():
+Class that handles /postlogin
+"""
+
 class PostLoginHandler(tornado.web.RequestHandler):
+	""" get():
+	Checks if a secure_cookie exists, if it doesn't then it redirects the user to /,
+	else it renders /postlogin.
+	"""
 	def get(self):
 		cookie_status = self.get_secure_cookie("user")
 		if(cookie_status==None):
@@ -139,19 +174,24 @@ class PostLoginHandler(tornado.web.RequestHandler):
 			self.render('postlogin.html')
 			return
 
+""" BootstrapModule():
+Class that has the bootstrap includes statements which are included in every page,
+except it's easier when it's made into a module.
+"""
+
 class BootstrapModule(tornado.web.UIModule):
 	def render(self):
 		return self.render_string('modules/bootstrap_include.html')
 
 if __name__ == '__main__':
-	tornado.options.parse_command_line()
+	tornado.options.parse_command_line() 
 	settings = {
 		"cookie_secret": "j84i6ykTfmew9As25eYqAbs5KIhrUv/gmp801s9zRo=",
-		"xsrf_cookies":True,
+		"xsrf_cookies":True, 
 		"login_url": "/signin",
 	}
-	async_db = motor.motor_tornado.MotorClient().example 
-	sync_db = MongoClient().example
+	async_db = motor.motor_tornado.MotorClient().example #Asynchronous DB driver  
+	sync_db = MongoClient().example 					 #Synchronous DB driver
 
 	application = tornado.web.Application(
 		handlers = [
