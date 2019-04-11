@@ -1,1 +1,49 @@
-HELLO
+<!DOCTYPE html>
+<head>
+	<link rel="stylesheet" href=" {{ static_url('index.css') }}">
+	{% module cdn_includes() %}
+	<title>Profile</title>
+</head>
+<body>
+	{% module navbar() %}
+	<div class="container">
+		{% if error %}
+			<span style="color: red">Error: {{ error }}</span>
+		{% end %}
+
+		<div class="row" id="spacing">
+			<div class="col-6 text-center">
+				<form action="/createpoll">
+					<button id="createpoll"> Create a poll</button>
+				</form>
+			</div>
+
+			<div class="col-6 text-center">
+				<form action="/existingpolls">
+					<button id="existingpolls"> Check created polls</button>
+				</form>
+			</div>
+		</div>
+
+
+		<div class="toast" role="alert" aria-live="assertive" aria-atomic="true" >
+			<div class="toast-body">
+				You have now logged in!
+			</div>
+		</div>
+	</div>
+</body>
+
+<!-- JQuery for initialization of the toast -->
+<script>
+	var flag = true;
+	$(document).ready(function(){
+		var trigger_flag = localStorage.getItem('trigger_flag'); //Gets the flag value from localstorage 
+
+	if( !trigger_flag ) { //checks if the value returned by getItem is null
+		$('.toast').toast('show'); 
+		localStorage.setItem('trigger_flag', 'flag_is_set'); //If the item doesn't exist, it is set here.
+		}
+	});
+
+</script>

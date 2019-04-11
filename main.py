@@ -2,7 +2,7 @@
 import os.path
 import re
 import motor.motor_tornado
-from argon2 import PasswordHasher
+import argon2
 from pymongo import MongoClient
 import random
 import tornado.httpserver
@@ -15,31 +15,48 @@ from tornado.options import define, options
 #Setting options for the server
 define("port", default=8100, help="run on the given port", type=int)
 
-""" BaseHandler():
-Class that'll be used later when @tornado.web.authenticated is needed for POST requests.
-"""
 
 class BaseHandler(tornado.web.RequestHandler):
+	""" BaseHandler():
+	Class that'll be used later when @tornado.web.authenticated is needed for POST requests.
+	"""
 	def get_current_user(self):
 		return self.get_secure_cookie("user")
 
-""" SignUpHandler():
-Class that handles /signup
-"""
 
-class SignUpHandler(tornado.web.RequestHandler):
-	"""	get():
-	Renders the Sign Up page when the user arrives at /signup. 
+class ErrorHandler(tornado.web.ErrorHandler):
+	"""
+	Default handler gonna to be used in case of 404 error
+	"""
+	def write_error(self, status_code, **kwargs):
+		if status_code in [403, 404, 500, 503]:
+			self.redirect("/")
+
+
+class IndexHandler(tornado.web.RequestHandler):
+	""" IndexHandler():
+	Class that handles /
 	"""
 	def get(self):
+		self.render('index.html')
+
+
+class SignUpHandler(tornado.web.RequestHandler):
+	""" SignUpHandler():
+	Class that handles /signup
+	"""
+	def get(self):
+		"""	get():
+		Renders the Sign Up page when the user arrives at /signup. 
+		"""
 		self.render('signup.html',error='')
 	
-	""" check_if_exists():
-	Uses the pymongo driver(so everything is synchronous) to check if the username exists in database
-	then checks if the email address also exists in the database
-	depending on conditions, returns None or the error message to be displayed.
-	"""
 	def check_if_exists(self):
+		""" check_if_exists():
+		Uses the pymongo driver(so everything is synchronous) to check if the username exists in database
+		then checks if the email address also exists in the database
+		depending on conditions, returns None or the error message to be displayed.
+		"""
 		error = None
 		document_username = sync_db.users.find_one({'username':self.username})
 		if (document_username!=None):
@@ -49,38 +66,38 @@ class SignUpHandler(tornado.web.RequestHandler):
 			error = "Email exists already"
 		return error
 
-	""" do_insert():
-	Forms a document of the username, the email, and the hashed password
-	and using the Motor driver(asynchronously) inserts the document into database.
-	"""
 	async def do_insert(self,hashed_password):
+		""" do_insert():
+		Forms a document of the username, the email, and the hashed password
+		and using the Motor driver(asynchronously) inserts the document into database.
+		"""
 		document = {'username': self.username,'email': self.email,'password': hashed_password}
 		result = await async_db.users.insert_one(document)
 
-	""" hash_password():
-	Initializes an instance of PasswordHasher from argon2, hashes the password,
-	verifies if the hashing happened properly, re-hashes if the verification failed,
-	and then returns hashed password.
-	"""
 	def hash_password(self):
-		ph = PasswordHasher()
+		""" hash_password():
+		Initializes an instance of argon2.PasswordHasher from argon2, hashes the password,
+		verifies if the hashing happened properly, re-hashes if the verification failed,
+		and then returns hashed password.
+		"""
+		ph = argon2.PasswordHasher()
 		hashed_password = ph.hash(self.password)
 		try:
 			ph.verify(hashed_password,self.password)
-		except VerifyMismatchError:
+		except argon2.exceptions.VerifyMismatchError:
 			hashed_password = ph.hash(self.password)
 		return hashed_password
 
-	""" post():
-	Sets class variables, does rudimentary checks on username and email submitted using regex
-	and renders signup.html with the error if the regex fails to match the submitted value.
-	Then checks if the submitted username and email already exist in database by calling check_if_exists 
-	if check_if_exists returns not None then renders signup.html with the error. 
-	After confirming that no errors have occured, hashes the password and then inserts it into the
-	MongoDB database by calling hash_password() and do_insert() respectively.
-	Finally, sets the secure cookie and logs in the user.
-	"""
 	async def post(self):
+		""" post():
+		Sets class variables, does rudimentary checks on username and email submitted using regex
+		and renders signup.html with the error if the regex fails to match the submitted value.
+		Then checks if the submitted username and email already exist in database by calling check_if_exists 
+		if check_if_exists returns not None then renders signup.html with the error. 
+		After confirming that no errors have occured, hashes the password and then inserts it into the
+		MongoDB database by calling hash_password() and do_insert() respectively.
+		Finally, sets the secure cookie and logs in the user.
+		"""
 		self.username = self.get_argument("username").lower()
 		self.email = self.get_argument("email").lower()
 		self.password = self.get_argument("psword").lower()
@@ -104,38 +121,40 @@ class SignUpHandler(tornado.web.RequestHandler):
 		self.redirect('/postlogin')
 		return
 
-""" SignInHandler():
-Class that handles /signin
-"""
-
 class SignInHandler(tornado.web.RequestHandler):
-	""" get():
-	Renders the Sign In page when the user arrives at /signin
+	""" SignInHandler():
+	Class that handles /signin
 	"""
 	def get(self):
+		""" get():
+		Renders the Sign In page when the user arrives at /signin
+		"""
 		self.render('signin.html',error='')
 
-	""" check_database():
-	Creates an instance of PasswordHasher, finds if there is any document in the database with the 
-	username submitted, verifies the password with the hashed password inside the database if the 
-	document exists, returns None or the error message.
-	"""
 	def check_database(self):
-		ph = PasswordHasher()
+		""" check_database():
+		Creates an instance of argon2.PasswordHasher, finds if there is any document in the database with the 
+		username submitted, verifies the password with the hashed password inside the database if the 
+		document exists, returns None or the error message.
+		"""
+		ph = argon2.PasswordHasher()
 		error = None
 		document_username = sync_db.users.find_one({'username':self.username})
 		if(document_username == None):
 			error = "User doesn't exist. Please sign up first!"
-		elif(ph.verify(document_username['password'],self.password)==False):
-			error = "Password is wrong, try again!"
+		else:
+			try:
+				ph.verify(document_username['password'],self.password)
+			except argon2.exceptions.VerifyMismatchError:
+				error = "Password is wrong, try again!"
 		return error			
 
-	""" post():
-	Sets the class variables and checks the database to verify if the credentials exist and
-	are valid, renders the Sign In page with the error if they don't.
-	Finally, sets the secure cookie and redirects to /postlogin.
-	"""
 	def post(self):
+		""" post():
+		Sets the class variables and checks the database to verify if the credentials exist and
+		are valid, renders the Sign In page with the error if they don't.
+		Finally, sets the secure cookie and redirects to /postlogin.
+		"""
 		self.username = self.get_argument("username").lower()
 		self.password = self.get_argument("psword").lower()
 
@@ -148,47 +167,90 @@ class SignInHandler(tornado.web.RequestHandler):
 		self.redirect('/postlogin')
 		return
 
-""" IndexHandler():
-Class that handles /
-"""
-
-class IndexHandler(tornado.web.RequestHandler):
-	def get(self):
-		self.render('index.html')
-
-""" PostLoginHandler():
-Class that handles /postlogin
-"""
-
-class PostLoginHandler(tornado.web.RequestHandler):
-	""" get():
-	Checks if a secure_cookie exists, if it doesn't then it redirects the user to /,
-	else it renders /postlogin.
+class PostLoginHandler(BaseHandler):
+	""" PostLoginHandler():
+	Class that handles /postlogin
 	"""
+	@tornado.web.authenticated
 	def get(self):
-		cookie_status = self.get_secure_cookie("user")
-		if(cookie_status==None):
-			self.render('index.html')
-			return
-		else:
-			self.render('postlogin.html')
-			return
+		""" get():
+		Renders the postlogin page, uses the decorator to make sure the user is logged in first.
+		"""
+		self.render('postlogin.html',error='')
+		return
 
-""" BootstrapModule():
-Class that has the bootstrap includes statements which are included in every page,
-except it's easier when it's made into a module.
-"""
+class CreatePollHandler(BaseHandler):
+	""" CreatePollHandler():
+	Class that handles /createpoll
+	"""
+	@tornado.web.authenticated
+	def get(self):
+		""" get():
+		Renders the createpoll page. uses the decorator to make sure the user is logged in first.
+		"""
+		self.render('createpoll.html',error='')
+		return
 
-class BootstrapModule(tornado.web.UIModule):
+class ExistingPollsHandler(BaseHandler):
+	""" ExistingPollsHandler():
+	Class that handles /existingpolls
+	"""
+	@tornado.web.authenticated
+	def get(self):
+		""" get():
+		Renders the existingpolls page. uses the decorator to make sure the user is logged in first.
+		"""
+		self.render('existingpolls.html',error='')
+		return
+
+class LogoutHandler(tornado.web.RequestHandler):
+	""" LogoutHandler():
+	Class that handles /logout
+	"""
+	@tornado.web.authenticated
+	def get(self):
+		""" get():
+		Cleans out the secure cookie, but only after checking that the user is logged in first
+		so as to not throw any errors. Also redirects to home page.
+		"""
+		self.clear_cookie("user")
+		self.redirect("/")
+
+# ---------------------MODULES BEGIN---------------------
+
+class CDNIncludesModule(tornado.web.UIModule):
+	""" CDNIncludesModule():
+	Class that has the CDN includes statements which are included in every page,
+	except it's easier when it's made into a module.
+	"""
 	def render(self):
-		return self.render_string('modules/bootstrap_include.html')
+		""" render():
+		Renders the module as a HTML string.
+		"""
+		return self.render_string('modules/CDN_includes.html')
 
+class NavbarModule(tornado.web.UIModule):
+	""" NavbarModule():
+	Class that has the Navbar code, put into a module for easier integration.
+	"""
+	def render(self):
+		""" render():
+		Renders the navbar code as an HTML string.
+		"""
+		return self.render_string('modules/navbar.html')
+
+# ---------------------MODULES END---------------------
+
+
+#---------------------MAIN BEGINS---------------------
 if __name__ == '__main__':
 	tornado.options.parse_command_line() 
 	settings = {
 		"cookie_secret": "j84i6ykTfmew9As25eYqAbs5KIhrUv/gmp801s9zRo=",
 		"xsrf_cookies":True, 
-		"login_url": "/signin",
+		"login_url": "/index",
+		"default_handler_class": ErrorHandler, #Error Handler in case of 404s
+		"default_handler_args": dict(status_code=404) #Argument that needs to be passed if 404 page is hit
 	}
 	async_db = motor.motor_tornado.MotorClient().example #Asynchronous DB driver  
 	sync_db = MongoClient().example 					 #Synchronous DB driver
@@ -198,11 +260,14 @@ if __name__ == '__main__':
 			(r'/',IndexHandler),
 			(r'/signup', SignUpHandler),
 			(r'/signin', SignInHandler),
-			(r'/postlogin',PostLoginHandler)
+			(r'/postlogin',PostLoginHandler),
+			(r'/createpoll',CreatePollHandler),
+			(r'/existingpolls',ExistingPollsHandler),
+			(r'/logout', LogoutHandler)
 		],
 		template_path = os.path.join(os.path.dirname(__file__),"templates"),
 		static_path = os.path.join(os.path.dirname(__file__),"static"),
-		ui_modules={'bootstrap': BootstrapModule},
+		ui_modules={'cdn_includes': CDNIncludesModule, 'navbar':NavbarModule},
 		debug = True,
 		async_db = async_db,
 		sync_db = sync_db,
@@ -212,3 +277,5 @@ if __name__ == '__main__':
 	http_server = tornado.httpserver.HTTPServer(application)
 	http_server.listen(options.port)
 	tornado.ioloop.IOLoop.instance().start()
+
+#---------------------MAIN ENDS---------------------

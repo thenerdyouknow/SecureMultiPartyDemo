@@ -1,5 +1,5 @@
-#index{
-	margin : 30px;
+#spacing{
+	margin : 50px;
 }
 
 input[type=text], input[type=password] {
@@ -7,6 +7,11 @@ input[type=text], input[type=password] {
   padding: 10px;
   margin : 10px;
   display: inline-block;
+}
+
+.row {
+	border: 0.1px solid grey;
+	padding: 30px;
 }
 
 .signupbtn{
