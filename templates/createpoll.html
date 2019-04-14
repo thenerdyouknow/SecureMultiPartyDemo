@@ -1,1 +1,15 @@
-NOW CREATE POLLS
+<!DOCTYPE html>
+<head>
+	<link rel="stylesheet" href=" {{ static_url('index.css') }}">
+	{% module cdn_includes() %}
+	<title>Profile</title>
+</head>
+<body>
+	{% module navbar() %}
+	<div class="container">
+		{% if error %}
+			<span style="color: red">Error: {{ error }}</span>
+		{% end %}
+	</div>
+</body>
+</html>

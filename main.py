@@ -21,7 +21,14 @@ class BaseHandler(tornado.web.RequestHandler):
 	Class that'll be used later when @tornado.web.authenticated is needed for POST requests.
 	"""
 	def get_current_user(self):
-		return self.get_secure_cookie("user")
+		user_cookie = self.get_secure_cookie("user")
+		tnc_cookie = self.get_secure_cookie("tnc")
+		if(user_cookie is None or tnc_cookie is None):
+			self.clear_cookie("user")
+			self.clear_cookie("tnc")
+			return None
+		else:
+			return user_cookie
 
 
 class ErrorHandler(tornado.web.ErrorHandler):
@@ -48,8 +55,13 @@ class SignUpHandler(tornado.web.RequestHandler):
 	def get(self):
 		"""	get():
 		Renders the Sign Up page when the user arrives at /signup. 
+		If the user is already logged in and tries to sign up, then it just immediately redirects to /postlogin instead.
 		"""
-		self.render('signup.html',error='')
+		if not self.get_secure_cookie("user"):
+			self.render('signup.html',error='')
+			return
+		else:
+			self.redirect("/postlogin")
 	
 	def check_if_exists(self):
 		""" check_if_exists():
@@ -118,6 +130,7 @@ class SignUpHandler(tornado.web.RequestHandler):
 		await self.do_insert(hashed_password)
 
 		self.set_secure_cookie("user", self.username)
+		self.set_secure_cookie("tnc", "1")
 		self.redirect('/postlogin')
 		return
 
@@ -127,9 +140,14 @@ class SignInHandler(tornado.web.RequestHandler):
 	"""
 	def get(self):
 		""" get():
-		Renders the Sign In page when the user arrives at /signin
+		Renders the Sign In page when the user arrives at /signin.
+		If a user is already logged in, automatically takes the user to /postlogin instead of letting them sign in again.
 		"""
-		self.render('signin.html',error='')
+		if not self.get_secure_cookie("user"):
+			self.render('signin.html',error='')
+			return
+		else:
+			self.redirect("/postlogin")
 
 	def check_database(self):
 		""" check_database():
@@ -164,6 +182,7 @@ class SignInHandler(tornado.web.RequestHandler):
 			return
 
 		self.set_secure_cookie("user", self.username)
+		self.set_secure_cookie("tnc", "1")
 		self.redirect('/postlogin')
 		return
 
@@ -207,13 +226,12 @@ class LogoutHandler(tornado.web.RequestHandler):
 	""" LogoutHandler():
 	Class that handles /logout
 	"""
-	@tornado.web.authenticated
 	def get(self):
 		""" get():
-		Cleans out the secure cookie, but only after checking that the user is logged in first
-		so as to not throw any errors. Also redirects to home page.
+		Cleans out the secure cookie. Also redirects to home page.
 		"""
 		self.clear_cookie("user")
+		self.clear_cookie("tnc")
 		self.redirect("/")
 
 # ---------------------MODULES BEGIN---------------------

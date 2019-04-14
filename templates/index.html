@@ -29,7 +29,7 @@
 <!-- Emptying out localStorage so the toast can trigger only once when login happens again. -->
 <!-- Sidenote : I spent way too much time on making this toast thing work, for some reason. What can I say, I like toast. -->
 <script>
-$(document).ready(function(){
-  localStorage.clear();
-});
+   $(document).one('ready', function () {
+       localStorage.clear();
+   });
 </script>
