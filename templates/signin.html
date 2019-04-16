@@ -5,25 +5,34 @@
 	<title> Sign In</title>
 </head>
 <body>
+<!-- Display any errors, if needed -->
 {% if error %}
 <span style="color: red">Error: {{ error }}</span><p>
 {% end %}
+
+<!-- Form for Signing In -->
 <form method="post">
 	<div class="container signupform">
 		<h1> Sign In </h1>
 
+		<!-- Username input -->
 		<label for="username"><b>Username</b></label>
 		<input type="text" placeholder="Enter your username" name="username" required>
 
+		<!-- Password input -->
 		<label for="psword"><b>Password</b></label>
 		<input type="password" placeholder="Enter your password" name="psword" required>
 		
+		<!-- INCLUDE for xsrf security -->
 		{% module xsrf_form_html() %}
 
+		<!-- Button to submit Sign In form -->
 		<div class="text-center signupbtn">
-			<button type="submit" class="text-center">Sign Up</button>
+			<button type="submit" class="text-center">Sign In</button>
 		</div>
+
 	</div>
 </form>
+
 </body>
 </html>

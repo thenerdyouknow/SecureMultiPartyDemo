@@ -5,11 +5,16 @@
 	<title> Sign Up</title>
 </head>
 <body>
+
+<!-- Display errors, if any -->
 {% if error %}
 <span style="color: red">Error: {{ error }}</span><p>
 {% end %}
+
+<!-- Form to submit Sign Up details -->
 <form method="post">
 	<div class="container signupform">
+		<!-- Instructions for Signing Up -->
 		<h1> Sign Up </h1>
 		<p> Please fill all the details below to sign up </p>
 		<hr>
@@ -22,21 +27,28 @@
 			<li> Doesn't end with _ or . </li>
 		</ol>
 
+		<!-- Input for Username -->
 		<label for="username"><b>Username</b></label>
 		<input type="text" placeholder="Enter your preferred Username" name="username" required>
 
+		<!-- Input for E-Mail -->
 		<label for="email"><b>E-Mail</b></label>
 		<input type="text" placeholder="Enter your E-Mail" name="email" required>
 
+		<!-- Input for password -->
 		<label for="psword"><b>Password</b></label>
 		<input type="password" placeholder="Enter the desired password" name="psword" required>
 		
+		<!-- INCLUDE for xsrf security -->
 		{% module xsrf_form_html() %}
 
+		<!-- Button to submit Sign Up form -->
 		<div class="text-center signupbtn">
 			<button type="submit" class="text-center">Sign Up</button>
 		</div>
+
 	</div>
 </form>
+
 </body>
 </html>

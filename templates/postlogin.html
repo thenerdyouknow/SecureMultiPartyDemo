@@ -7,17 +7,21 @@
 <body>
 	{% module navbar() %}
 	<div class="container">
+		<!-- Display error, if needed -->
 		{% if error %}
 			<span style="color: red">Error: {{ error }}</span>
 		{% end %}
 
+		<!-- DIV for housing the createpoll and existingpoll button -->
 		<div class="row" id="spacing">
+			<!-- DIV for the Create a Poll button -->
 			<div class="col-6 text-center">
 				<form action="/createpoll">
 					<button id="createpoll"> Create a poll</button>
 				</form>
 			</div>
 
+			<!-- DIV for the Check created polls button -->
 			<div class="col-6 text-center">
 				<form action="/existingpolls">
 					<button id="existingpolls"> Check created polls</button>
@@ -25,12 +29,13 @@
 			</div>
 		</div>
 
-
+		<!-- DIV for the toast -->
 		<div class="toast" role="alert" aria-live="assertive" aria-atomic="true" >
 			<div class="toast-body">
 				You have now logged in!
 			</div>
 		</div>
+		
 	</div>
 </body>
 
@@ -45,5 +50,4 @@
 		localStorage.setItem('trigger_flag', 'flag_is_set'); //If the item doesn't exist, it is set here.
 		}
 	});
-
 </script>

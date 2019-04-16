@@ -1,15 +1,75 @@
 <!DOCTYPE html>
 <head>
-	<link rel="stylesheet" href=" {{ static_url('index.css') }}">
+	<link rel="stylesheet" href=" {{ static_url('createpoll.css') }}">
 	{% module cdn_includes() %}
 	<title>Profile</title>
 </head>
 <body>
 	{% module navbar() %}
 	<div class="container">
+
+		<!-- Display any errors, if needed -->
 		{% if error %}
 			<span style="color: red">Error: {{ error }}</span>
 		{% end %}
+		
+		<form method="post">
+			<!-- DIV for the question -->
+    		<div id="question-div" class="row">
+    			<div class="col-3">
+        			<label for="question">Your Question</label> 
+        		</div>
+        		<div class="col-9">
+        			<textarea rows="4" cols="50" name="question" placeholder="Type in your question here!"></textarea>
+				</div>
+    		</div>
+
+    		<!-- DIV for the choices -->
+    		<div id="choices">
+    			<div class="row">
+    				<div class="col-3">
+    					<label for="choice">Choice for the poll</label>
+    				</div>
+    				<div class="col-3">
+    					<input type="text" name="choice">
+    				</div>
+    				<div class="col-6">
+    					<button type="button" class="remove">Remove</button>
+    				</div>
+    			</div>
+    		</div>
+
+    		<!-- DIV for adding choices -->
+    		<div id="add-another" class="row">
+    			<button type="button" class="add">Add another choice</button>
+    		</div>
+
+    		<!-- INCLUDE for xsrf security -->
+			{% module xsrf_form_html() %}
+
+			<!-- DIV for submitting the form -->
+			<div id="submit-form" class="row">	      	
+	    		<button type="submit" class="text-center">Create Poll</button>
+	    	</div>
+
+		</form>
 	</div>
 </body>
 </html>
+<script>
+	$(document).ready(function(){
+		var wrapper = $("#choices");
+
+		//Adds a choice DIV if the add button is clicked.
+		$(".add").click(function(){ 
+			$(wrapper).append('<div class="row"><div class="col-3"><label for="choice">Choice for the poll</label></div><div class="col-3"><input type="text" name="choice"></div><div class="col-6"><button type="button" class="remove">Remove</button></div></div>');
+		});
+
+		//Can't use a simple .click function because it seems to be unreachable under the DIVs.
+		$(wrapper).on("click",".remove", function(){
+			//The parent of the div, is the row, the parent of which is the #choices div, the one the option needs to be removed from.
+			$(this).parent().parent().remove();
+		});
+
+	});
+</script>

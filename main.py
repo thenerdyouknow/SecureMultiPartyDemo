@@ -210,6 +210,14 @@ class CreatePollHandler(BaseHandler):
 		self.render('createpoll.html',error='')
 		return
 
+	@tornado.web.authenticated
+	def post(self):
+		question = self.get_argument("question")
+		choices = self.get_arguments("choice")
+		return
+
+
+
 class ExistingPollsHandler(BaseHandler):
 	""" ExistingPollsHandler():
 	Class that handles /existingpolls
