@@ -4,6 +4,7 @@ import re
 import motor.motor_tornado
 import argon2
 from pymongo import MongoClient
+import functools
 import random
 import tornado.httpserver
 import tornado.ioloop
@@ -22,14 +23,31 @@ class BaseHandler(tornado.web.RequestHandler):
 	"""
 	def get_current_user(self):
 		user_cookie = self.get_secure_cookie("user")
-		tnc_cookie = self.get_secure_cookie("tnc")
-		if(user_cookie is None or tnc_cookie is None):
-			self.clear_cookie("user")
-			self.clear_cookie("tnc")
-			return None
-		else:
-			return user_cookie
+		# tnc_cookie = self.get_secure_cookie("tnc")
+		# if(user_cookie is None or tnc_cookie is None):
+		# 	self.clear_cookie("user")
+		# 	self.clear_cookie("tnc")
+		# 	return None
+		# else:
+		return user_cookie
 
+def protected(method):
+    @tornado.web.authenticated
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        self.set_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+        self.set_header('Pragma', 'no-cache')
+        self.set_header('Expires', '0')
+        return method(self, *args, **kwargs)
+    return wrapper
+
+def if_already_logged_in(method):
+	@functools.wraps(method)
+	def  wrapper(self, *args, **kwargs):
+		if self.get_secure_cookie("user"):
+			self.redirect("/postlogin")
+		return method(self,*args,**kwargs)
+	return wrapper
 
 class ErrorHandler(tornado.web.ErrorHandler):
 	"""
@@ -52,16 +70,14 @@ class SignUpHandler(tornado.web.RequestHandler):
 	""" SignUpHandler():
 	Class that handles /signup
 	"""
+	@if_already_logged_in
 	def get(self):
 		"""	get():
 		Renders the Sign Up page when the user arrives at /signup. 
 		If the user is already logged in and tries to sign up, then it just immediately redirects to /postlogin instead.
 		"""
-		if not self.get_secure_cookie("user"):
-			self.render('signup.html',error='')
-			return
-		else:
-			self.redirect("/postlogin")
+		self.render('signup.html',error='')
+		return
 	
 	def check_if_exists(self):
 		""" check_if_exists():
@@ -130,7 +146,7 @@ class SignUpHandler(tornado.web.RequestHandler):
 		await self.do_insert(hashed_password)
 
 		self.set_secure_cookie("user", self.username)
-		self.set_secure_cookie("tnc", "1")
+		# self.set_secure_cookie("tnc", "1")
 		self.redirect('/postlogin')
 		return
 
@@ -138,16 +154,14 @@ class SignInHandler(tornado.web.RequestHandler):
 	""" SignInHandler():
 	Class that handles /signin
 	"""
+	@if_already_logged_in
 	def get(self):
 		""" get():
 		Renders the Sign In page when the user arrives at /signin.
 		If a user is already logged in, automatically takes the user to /postlogin instead of letting them sign in again.
 		"""
-		if not self.get_secure_cookie("user"):
-			self.render('signin.html',error='')
-			return
-		else:
-			self.redirect("/postlogin")
+		self.render('signin.html',error='')
+		return
 
 	def check_database(self):
 		""" check_database():
@@ -182,7 +196,7 @@ class SignInHandler(tornado.web.RequestHandler):
 			return
 
 		self.set_secure_cookie("user", self.username)
-		self.set_secure_cookie("tnc", "1")
+		# self.set_secure_cookie("tnc", "1")
 		self.redirect('/postlogin')
 		return
 
@@ -190,7 +204,7 @@ class PostLoginHandler(BaseHandler):
 	""" PostLoginHandler():
 	Class that handles /postlogin
 	"""
-	@tornado.web.authenticated
+	@protected
 	def get(self):
 		""" get():
 		Renders the postlogin page, uses the decorator to make sure the user is logged in first.
@@ -202,7 +216,7 @@ class CreatePollHandler(BaseHandler):
 	""" CreatePollHandler():
 	Class that handles /createpoll
 	"""
-	@tornado.web.authenticated
+	@protected
 	def get(self):
 		""" get():
 		Renders the createpoll page. uses the decorator to make sure the user is logged in first.
@@ -210,11 +224,18 @@ class CreatePollHandler(BaseHandler):
 		self.render('createpoll.html',error='')
 		return
 
-	@tornado.web.authenticated
-	def post(self):
+	async def add_to_database(self,collection,question,choices):
+		document = {'question': question,'choices': choices}
+		result = await collection.insert_one(document)
+
+	@protected
+	async def post(self):
 		question = self.get_argument("question")
 		choices = self.get_arguments("choice")
-		return
+		username = str(self.get_secure_cookie("user"))
+		user_collection = async_db.username
+		await self.add_to_database(user_collection,question,choices)
+		self.redirect("/postlogin")
 
 
 
@@ -222,7 +243,7 @@ class ExistingPollsHandler(BaseHandler):
 	""" ExistingPollsHandler():
 	Class that handles /existingpolls
 	"""
-	@tornado.web.authenticated
+	@protected
 	def get(self):
 		""" get():
 		Renders the existingpolls page. uses the decorator to make sure the user is logged in first.
@@ -239,7 +260,7 @@ class LogoutHandler(tornado.web.RequestHandler):
 		Cleans out the secure cookie. Also redirects to home page.
 		"""
 		self.clear_cookie("user")
-		self.clear_cookie("tnc")
+		# self.clear_cookie("tnc")
 		self.redirect("/")
 
 # ---------------------MODULES BEGIN---------------------
