@@ -32,6 +32,10 @@ class BaseHandler(tornado.web.RequestHandler):
 		return user_cookie
 
 def protected(method):
+	""" protected():
+	Protected decorator which invokes the authenticated decorator, and then also prevents browsers from caching the pages
+	so that the user can't press back after logging out and access login-protected pages by setting header settings.
+	"""
     @tornado.web.authenticated
     @functools.wraps(method)
     def wrapper(self, *args, **kwargs):
@@ -42,6 +46,10 @@ def protected(method):
     return wrapper
 
 def if_already_logged_in(method):
+	""" if_already_logged_in():
+	Decorator that checks if the user is already logged in, if they are then it just redirects to /postlogin immediately. 
+	this is important functionality for the buttons on the index page.
+	"""
 	@functools.wraps(method)
 	def  wrapper(self, *args, **kwargs):
 		if self.get_secure_cookie("user"):
@@ -225,19 +233,28 @@ class CreatePollHandler(BaseHandler):
 		return
 
 	async def add_to_database(self,collection,question,choices):
+		""" add_to_database():
+		Creates a document of the question and the choices, and then asynchronously inserts the document into the
+		MongoDB database.
+		"""
 		document = {'question': question,'choices': choices}
 		result = await collection.insert_one(document)
 
 	@protected
 	async def post(self):
+		""" post():
+		Gets the poll question and the choices added by the user as a list, decodes the username of the user from the secure cookie,
+		and then asynchronously adds the poll created to the collection of user polls, which is named after the user. Then redirects 
+		to postlogin.
+		"""
 		question = self.get_argument("question")
 		choices = self.get_arguments("choice")
-		username = str(self.get_secure_cookie("user"))
-		user_collection = async_db.username
+		username = self.get_secure_cookie("user").decode('ascii')
+
+		user_collection = async_db[username]
+
 		await self.add_to_database(user_collection,question,choices)
 		self.redirect("/postlogin")
-
-
 
 class ExistingPollsHandler(BaseHandler):
 	""" ExistingPollsHandler():
@@ -250,6 +267,7 @@ class ExistingPollsHandler(BaseHandler):
 		"""
 		self.render('existingpolls.html',error='')
 		return
+
 
 class LogoutHandler(tornado.web.RequestHandler):
 	""" LogoutHandler():
