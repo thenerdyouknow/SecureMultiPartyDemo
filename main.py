@@ -23,12 +23,8 @@ class BaseHandler(tornado.web.RequestHandler):
 	"""
 	def get_current_user(self):
 		user_cookie = self.get_secure_cookie("user")
-		# tnc_cookie = self.get_secure_cookie("tnc")
-		# if(user_cookie is None or tnc_cookie is None):
-		# 	self.clear_cookie("user")
-		# 	self.clear_cookie("tnc")
-		# 	return None
-		# else:
+		if user_cookie is None:
+			self.clear_all_cookies(path="/")
 		return user_cookie
 
 def protected(method):
@@ -43,6 +39,16 @@ def protected(method):
 		self.set_header('Pragma', 'no-cache')
 		self.set_header('Expires', '0')
 		return method(self, *args, **kwargs)
+	return wrapper
+
+def if_poll_created(method):
+	
+	@tornado.web.authenticated
+	@functools.wraps(method)
+	def wrapper(self, *args, **kwargs):
+		if self.get_secure_cookie("poll_data") is None:
+			self.redirect("/postlogin")
+		return method(self,*args,**kwargs)
 	return wrapper
 
 def if_already_logged_in(method):
@@ -238,7 +244,8 @@ class CreatePollHandler(BaseHandler):
 		MongoDB database.
 		"""
 		document = {'title':title,'question': question,'choices': choices}
-		result = await collection.insert_one(document)
+		_id = await collection.insert_one(document)
+		return _id
 
 	@protected
 	async def post(self):
@@ -252,10 +259,21 @@ class CreatePollHandler(BaseHandler):
 		choices = self.get_arguments("choice")
 		username = self.get_secure_cookie("user").decode('ascii')
 
-		user_collection = sync_db[username]
+		user_collection = async_db[username]
 
-		await self.add_to_database(user_collection,title,question,choices)
-		self.redirect("/postlogin")
+		insert_id = await self.add_to_database(user_collection,title,question,choices)
+
+		self.set_secure_cookie("poll_data",str(insert_id.inserted_id))
+
+		self.redirect("/uniquepollid")
+
+class PollIdHandler(BaseHandler):
+
+	@protected
+	@if_poll_created
+	def get(self):
+		self.write("LMAO")
+		return
 
 class ExistingPollsHandler(BaseHandler):
 	""" ExistingPollsHandler():
@@ -272,11 +290,10 @@ class ExistingPollsHandler(BaseHandler):
 		""" get():
 		Renders the existingpolls page. uses the decorator to make sure the user is logged in first.
 		"""
-
 		username = self.get_secure_cookie("user").decode('ascii')
 		all_polls = self.get_user_polls(username)
 
-		self.render('existingpolls.html',error='',all_the_polls=all_polls,i=0)
+		self.render('existingpolls.html',all_the_polls=all_polls,errors='')
 		return
 
 
@@ -288,8 +305,7 @@ class LogoutHandler(tornado.web.RequestHandler):
 		""" get():
 		Cleans out the secure cookie. Also redirects to home page.
 		"""
-		self.clear_cookie("user")
-		# self.clear_cookie("tnc")
+		self.clear_all_cookies(path="/")
 		self.redirect("/")
 
 # ---------------------MODULES BEGIN---------------------
@@ -338,6 +354,7 @@ if __name__ == '__main__':
 			(r'/signin', SignInHandler),
 			(r'/postlogin',PostLoginHandler),
 			(r'/createpoll',CreatePollHandler),
+			(r'/uniquepollid',PollIdHandler),
 			(r'/existingpolls',ExistingPollsHandler),
 			(r'/logout', LogoutHandler)
 		],

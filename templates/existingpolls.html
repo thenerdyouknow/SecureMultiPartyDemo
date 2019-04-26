@@ -12,13 +12,17 @@
 		{% if error %}
 			<span style="color: red">Error: {{ error }}</span>
 		{% end %}
+
 		<div id = "heading">
 			<h3> Your Polls : </h3>
 		</div>
+
 		{% set i = 0 %}
+
 		<div id="accordion">
 		{% for every_poll in all_the_polls %}
   			<div class="card">
+
     			<div class="card-header" id="{{ every_poll["title"] }}">
       				<h5 class="mb-0">
         			<button class="btn btn-link" data-toggle="collapse" data-target="#{{ "collapse" + str(i) }}" aria-expanded="false" aria-controls=""{{ "collapse" + str(i) }}"">
@@ -26,8 +30,10 @@
         			</button>
       				</h5>
     			</div>
+
     			<div id="{{ "collapse" + str(i) }}" class="collapse" aria-labelledby="{{ every_poll["title"] }}" data-parent="#accordion">
       				<div class="card-body">
+
       					<table class="table table-bordered">
   							<thead class="thead-dark">
     							<tr>
@@ -48,10 +54,13 @@
         						</tr>
         					</tbody>
         				</table>
+
         			</div>
 				</div>
+
 			{% set i = i + 1 %}
 		{% end %}
+		
 		</div>
   	</div>
 </body>
