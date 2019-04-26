@@ -12,8 +12,16 @@
 		{% if error %}
 			<span style="color: red">Error: {{ error }}</span>
 		{% end %}
-		
+
 		<form method="post">
+			<div class="row">
+				<div class="col-3">
+					<label for="title">Title for the poll</label>
+				</div>
+				<div class="col-9">
+					<input type="text" name="title">
+				</div>
+			</div>
 			<!-- DIV for the question -->
     		<div id="question-div" class="row">
     			<div class="col-3">
@@ -30,10 +38,10 @@
     				<div class="col-3">
     					<label for="choice">Choice for the poll</label>
     				</div>
-    				<div class="col-3">
+    				<div class="col-6">
     					<input type="text" name="choice">
     				</div>
-    				<div class="col-6">
+    				<div class="col-3">
     					<button type="button" class="remove">Remove</button>
     				</div>
     			</div>
@@ -62,7 +70,7 @@
 
 		//Adds a choice DIV if the add button is clicked.
 		$(".add").click(function(){ 
-			$(wrapper).append('<div class="row"><div class="col-3"><label for="choice">Choice for the poll</label></div><div class="col-3"><input type="text" name="choice"></div><div class="col-6"><button type="button" class="remove">Remove</button></div></div>');
+			$(wrapper).append('<div class="row"><div class="col-3"><label for="choice">Choice for the poll</label></div><div class="col-6"><input type="text" name="choice"></div><div class="col-3"><button type="button" class="remove">Remove</button></div></div>');
 		});
 
 		//Can't use a simple .click function because it seems to be unreachable under the DIVs.

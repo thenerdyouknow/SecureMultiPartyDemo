@@ -36,14 +36,14 @@ def protected(method):
 	Protected decorator which invokes the authenticated decorator, and then also prevents browsers from caching the pages
 	so that the user can't press back after logging out and access login-protected pages by setting header settings.
 	"""
-    @tornado.web.authenticated
-    @functools.wraps(method)
-    def wrapper(self, *args, **kwargs):
-        self.set_header('Cache-Control', 'no-cache, no-store, must-revalidate')
-        self.set_header('Pragma', 'no-cache')
-        self.set_header('Expires', '0')
-        return method(self, *args, **kwargs)
-    return wrapper
+	@tornado.web.authenticated
+	@functools.wraps(method)
+	def wrapper(self, *args, **kwargs):
+		self.set_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+		self.set_header('Pragma', 'no-cache')
+		self.set_header('Expires', '0')
+		return method(self, *args, **kwargs)
+	return wrapper
 
 def if_already_logged_in(method):
 	""" if_already_logged_in():
@@ -113,15 +113,15 @@ class SignUpHandler(tornado.web.RequestHandler):
 	def hash_password(self):
 		""" hash_password():
 		Initializes an instance of argon2.PasswordHasher from argon2, hashes the password,
-		verifies if the hashing happened properly, re-hashes if the verification failed,
-		and then returns hashed password.
+		verifies if the hashing happened properly, raises error if the verification failed,
+		and then returns hashed password if verifications passes.
 		"""
 		ph = argon2.PasswordHasher()
 		hashed_password = ph.hash(self.password)
 		try:
 			ph.verify(hashed_password,self.password)
 		except argon2.exceptions.VerifyMismatchError:
-			hashed_password = ph.hash(self.password)
+			raise
 		return hashed_password
 
 	async def post(self):
@@ -232,12 +232,12 @@ class CreatePollHandler(BaseHandler):
 		self.render('createpoll.html',error='')
 		return
 
-	async def add_to_database(self,collection,question,choices):
+	async def add_to_database(self,collection,title,question,choices):
 		""" add_to_database():
 		Creates a document of the question and the choices, and then asynchronously inserts the document into the
 		MongoDB database.
 		"""
-		document = {'question': question,'choices': choices}
+		document = {'title':title,'question': question,'choices': choices}
 		result = await collection.insert_one(document)
 
 	@protected
@@ -247,25 +247,36 @@ class CreatePollHandler(BaseHandler):
 		and then asynchronously adds the poll created to the collection of user polls, which is named after the user. Then redirects 
 		to postlogin.
 		"""
+		title = self.get_argument("title")
 		question = self.get_argument("question")
 		choices = self.get_arguments("choice")
 		username = self.get_secure_cookie("user").decode('ascii')
 
-		user_collection = async_db[username]
+		user_collection = sync_db[username]
 
-		await self.add_to_database(user_collection,question,choices)
+		await self.add_to_database(user_collection,title,question,choices)
 		self.redirect("/postlogin")
 
 class ExistingPollsHandler(BaseHandler):
 	""" ExistingPollsHandler():
 	Class that handles /existingpolls
 	"""
+
+	def get_user_polls(self,user):
+		collection = sync_db[user]
+		result = collection.find()
+		return result
+
 	@protected
 	def get(self):
 		""" get():
 		Renders the existingpolls page. uses the decorator to make sure the user is logged in first.
 		"""
-		self.render('existingpolls.html',error='')
+
+		username = self.get_secure_cookie("user").decode('ascii')
+		all_polls = self.get_user_polls(username)
+
+		self.render('existingpolls.html',error='',all_the_polls=all_polls,i=0)
 		return
 
 

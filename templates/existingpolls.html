@@ -1,1 +1,58 @@
-THE POLLS YOU'VE CREATED ARE
+<!DOCTYPE html>
+<head>
+	<link rel="stylesheet" href=" {{ static_url('createpoll.css') }}">
+	{% module cdn_includes() %}
+
+	<title>Profile</title>
+</head>
+<body>
+	{% module navbar() %}
+	<div class="container">
+		<!-- Display any errors, if needed -->
+		{% if error %}
+			<span style="color: red">Error: {{ error }}</span>
+		{% end %}
+		<div id = "heading">
+			<h3> Your Polls : </h3>
+		</div>
+		{% set i = 0 %}
+		<div id="accordion">
+		{% for every_poll in all_the_polls %}
+  			<div class="card">
+    			<div class="card-header" id="{{ every_poll["title"] }}">
+      				<h5 class="mb-0">
+        			<button class="btn btn-link" data-toggle="collapse" data-target="#{{ "collapse" + str(i) }}" aria-expanded="false" aria-controls=""{{ "collapse" + str(i) }}"">
+        				{{ every_poll["title"] }}
+        			</button>
+      				</h5>
+    			</div>
+    			<div id="{{ "collapse" + str(i) }}" class="collapse" aria-labelledby="{{ every_poll["title"] }}" data-parent="#accordion">
+      				<div class="card-body">
+      					<table class="table table-bordered">
+  							<thead class="thead-dark">
+    							<tr>
+      								<th scope="col">Question</th>
+      								<th scope="col">Choices</th>
+      							</tr>
+      						</thead>
+      						<tbody>
+      							<tr>
+      								<td> {{ every_poll["question"] }} </td>
+      								<td>
+      									<ul>
+      										{% for every_choice in every_poll["choices"] %}
+	      										<li>{{ every_choice }}</li>
+        								{% end %}
+        								</ul>
+        							</td>
+        						</tr>
+        					</tbody>
+        				</table>
+        			</div>
+				</div>
+			{% set i = i + 1 %}
+		{% end %}
+		</div>
+  	</div>
+</body>
+</html>
