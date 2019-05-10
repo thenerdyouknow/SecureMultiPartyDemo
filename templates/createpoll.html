@@ -19,7 +19,7 @@
 					<label for="title">Title for the poll</label>
 				</div>
 				<div class="col-9">
-					<input type="text" name="title">
+					<input type="text" name="title" required>
 				</div>
 			</div>
 			<!-- DIV for the question -->
@@ -28,7 +28,7 @@
         			<label for="question">Your Question</label> 
         		</div>
         		<div class="col-9">
-        			<textarea rows="4" cols="50" name="question" placeholder="Type in your question here!"></textarea>
+        			<textarea rows="4" cols="50" name="question" placeholder="Type in your question here!" required></textarea>
 				</div>
     		</div>
 
@@ -39,7 +39,7 @@
     					<label for="choice">Choice for the poll</label>
     				</div>
     				<div class="col-6">
-    					<input type="text" name="choice">
+    					<input type="text" name="choice" required>
     				</div>
     				<div class="col-3">
     					<button type="button" class="remove">Remove</button>
@@ -50,6 +50,15 @@
     		<!-- DIV for adding choices -->
     		<div id="add-another" class="row">
     			<button type="button" class="add">Add another choice</button>
+    		</div>
+
+    		<div id="participants" class="row">
+    			<div class="col-3">
+    				<label for="participants">Participants Emails(seperated by commas)</label>
+    			</div>
+    			<div class="col-6">
+    				<input type="text" name="participants" required>
+    			</div>
     		</div>
 
     		<!-- INCLUDE for xsrf security -->
@@ -69,14 +78,25 @@
 		var wrapper = $("#choices");
 
 		//Adds a choice DIV if the add button is clicked.
-		$(".add").click(function(){ 
-			$(wrapper).append('<div class="row"><div class="col-3"><label for="choice">Choice for the poll</label></div><div class="col-6"><input type="text" name="choice"></div><div class="col-3"><button type="button" class="remove">Remove</button></div></div>');
+		$(".add").click(function(){
+			var number_of_choices = $('#choices .row').length;
+			if(number_of_choices == 2){
+				alert("Current functionality only allows for 2 choices, sorry!");
+			} else{
+				$(wrapper).append('<div class="row"><div class="col-3"><label for="choice">Choice for the poll</label></div><div class="col-6"><input type="text" name="choice" required></div><div class="col-3"><button type="button" class="remove">Remove</button></div></div>');
+			}
 		});
 
 		//Can't use a simple .click function because it seems to be unreachable under the DIVs.
 		$(wrapper).on("click",".remove", function(){
+			var number_of_choices = $('#choices .row').length;
 			//The parent of the div, is the row, the parent of which is the #choices div, the one the option needs to be removed from.
-			$(this).parent().parent().remove();
+			if(number_of_choices == 1){
+				alert("Can't remove every option!")
+			} else {
+				$(this).parent().parent().remove();
+			}
+			
 		});
 
 	});
