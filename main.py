@@ -4,15 +4,19 @@ import re
 import argon2
 import socket
 import functools
+import copy
 import random
+import smtplib
 import motor.motor_tornado
 import tornado.httpserver
 import tornado.ioloop
 import tornado.options
 import tornado.web
+from bson import ObjectId
 from tornado.options import define, options
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives import padding
 from urllib.parse import urlparse
 from Crypto.Cipher import AES  # http://pycrypto.org
@@ -22,7 +26,10 @@ from pymongo import MongoClient
 define("port", default=8100, help="run on the given port", type=int)
 
 NUMBER_OF_SERVERS = 3
+SERVER_IPS = ['127.0.0.1','127.0.0.1','127.0.0.1']
+SERVER_PORTS = [9000,9001,9002]
 PORT = 8105
+PUBLIC_KEYS = ['public_keys/public_key_1.pem','public_keys/public_key_2.pem','public_keys/public_key_3.pem']
 
 def generating_AES_keys():
 	key = os.urandom(16)
@@ -32,6 +39,17 @@ def generating_AES_keys():
 		open_file.write('\n'.encode())
 		open_file.write(IV)
 
+def read_AES_keys():
+
+	AES_keys = []
+	with open('AES.txt','rb') as open_file:
+		file_contents = open_file.read()
+		AES_keys = file_contents.splitlines()
+
+	key = AES_keys[0]
+	iv = AES_keys[1]
+
+	return key, iv
 
 def check_username(username):
 	if (re.fullmatch('^(?=.{8,20}$)(?![_.])(?!.*[_.]{2})[a-zA-Z0-9._]+(?<![_.])$', username) == None):
@@ -138,13 +156,13 @@ class SignUpHandler(tornado.web.RequestHandler):
 			error = "Email exists already"
 		return error
 
-	async def do_insert(self,hashed_password):
+	async def do_insert(self,collection,hashed_password):
 		""" do_insert():
 		Forms a document of the username, the email, and the hashed password
 		and using the Motor driver(asynchronously) inserts the document into database.
 		"""
 		document = {'username': self.username,'email': self.email,'password': hashed_password}
-		result = await async_db.users.insert_one(document)
+		result = await collection.insert_one(document)
 
 	def hash_password(self):
 		""" hash_password():
@@ -187,7 +205,9 @@ class SignUpHandler(tornado.web.RequestHandler):
 			return
 
 		hashed_password = self.hash_password()
-		await self.do_insert(hashed_password)
+
+		user_collection = async_db.users
+		await self.do_insert(user_collection, hashed_password)
 
 		self.set_secure_cookie("user", self.username)
 		# self.set_secure_cookie("tnc", "1")
@@ -207,7 +227,7 @@ class SignInHandler(tornado.web.RequestHandler):
 		self.render('signin.html',error='')
 		return
 
-	def check_database(self):
+	def check_database(self,collection):
 		""" check_database():
 		Creates an instance of argon2.PasswordHasher, finds if there is any document in the database with the 
 		username submitted, verifies the password with the hashed password inside the database if the 
@@ -215,7 +235,7 @@ class SignInHandler(tornado.web.RequestHandler):
 		"""
 		ph = argon2.PasswordHasher()
 		error = None
-		document_username = sync_db.users.find_one({'username':self.username})
+		document_username = collection.find_one({'username':self.username})
 		if(document_username == None):
 			error = "User doesn't exist. Please sign up first!"
 		else:
@@ -234,7 +254,8 @@ class SignInHandler(tornado.web.RequestHandler):
 		self.username = self.get_argument("username").lower()
 		self.password = self.get_argument("psword").lower()
 
-		check_details = self.check_database()
+		user_collection = sync_db.users
+		check_details = self.check_database(user_collection)
 		if(check_details!=None):
 			self.render('signin.html',error=check_details)
 			return
@@ -277,16 +298,9 @@ class CreatePollHandler(BaseHandler):
 		_id = await collection.insert_one(document)
 		return _id
 
-	def check_validity(self,participants):
-		participant_list = participants.split(",")
-
-		if(len(participant_list) == 1):
-			participant_list_new = participants.split(" ")
-			if(len(participant_list_new) > 1):
-				return 'Looks like you forgot about the commas to seperate them, please rectify!'
+	def check_validity(self,participant_list):
 
 		for participant in participant_list:
-			participant = participant.strip()
 			if(check_email(participant)==0):
 				return 'Participant '+ participant +' looks like an invalid email! Please rectify!'
 		return None
@@ -295,70 +309,91 @@ class CreatePollHandler(BaseHandler):
 
 		hostname = urlparse("%s://%s"
 		% (self.request.protocol, self.request.host)).hostname
-
 		ip_address = socket.gethostbyname(hostname)
 
 		return ip_address
 
-	def read_AES_keys(self):
-		AES_keys = []
-		with open('AES.txt','rb') as open_file:
-			file_contents = open_file.read()
-			AES_keys = file_contents.splitlines()
-		key = AES_keys[0]
-		iv = AES_keys[1]
-		return key, iv
-
-	def decrypt_link(self,string_to_decrypt):
-
-		key, iv = self.read_AES_keys()
-		cipher = Cipher(algorithms.AES(key), modes.CBC(iv), default_backend())
-
-		decryptor = cipher.decryptor()
-		string_to_decrypt = bytes.fromhex(string_to_decrypt)
-
-		padded_plaintext = decryptor.update(string_to_decrypt) + decryptor.finalize()
-
-		unpadder = padding.PKCS7(128).unpadder()
-		plaintext = unpadder.update(padded_plaintext) + unpadder.finalize()
-
-		return plaintext
-
-
 	def encrypt_link(self,string_to_encrypt):
 
-		key, iv = self.read_AES_keys()
+		key, iv = read_AES_keys()
 		padder = padding.PKCS7(128).padder()
 
 		padded_data = padder.update(bytes(string_to_encrypt.encode())) + padder.finalize()
 		cipher = Cipher(algorithms.AES(key), modes.CBC(iv), default_backend())
-
 		encryptor = cipher.encryptor()
 
 		ciphertext = encryptor.update(padded_data) + encryptor.finalize()
-		
+
 		return ciphertext.hex()
 
 
-	def generating_user_links(self,participants,poll_id):
+	def generating_user_links(self,participant_list,poll_id):
 
 		unique_link_doc = []
-		participant_list = participants.split(",")
+
 		number_of_participants = len(participant_list)
 
 		ip_address = self.get_IP_address()
 
 		for i in range(1,number_of_participants+1):
 
-			initial_unique_poll_link = str(ip_address) + ":"+ str(options.port)+"/get_poll/?"
-			part_to_be_encrypted = "poll_id="+str(poll_id.inserted_id) +"&participant_number="+str(i)
+			participant_dict = {}
+
+			initial_unique_poll_link = str(ip_address) + ":"+ str(options.port)+"/get_poll/"
+			part_to_be_encrypted = "poll_id="+str(poll_id.inserted_id) +"&participant_email="+str(participant_list[i-1])
 
 			encrypted_link = self.encrypt_link(part_to_be_encrypted)
 			final_unique_poll_link = initial_unique_poll_link + encrypted_link
 
-			unique_link_doc.append(final_unique_poll_link)
+			participant_dict[participant_list[i-1]] = final_unique_poll_link
+
+			unique_link_doc.append(participant_dict)
 
 		return unique_link_doc
+
+	#Taken and modified from Rosetta Code
+	def send_email(self,server,from_address, to_address, subject, message):
+
+		header  = 'From: %s\n' % from_address
+		header += 'To: %s\n' % to_address
+		header += 'Subject: %s\n\n' % subject
+		message = header + message
+		problems = server.sendmail(from_address, to_address, message)
+		#For some reason doesn't actually return invalid addresses which you can't mail.
+		return problems
+
+
+	def send_participant_emails(self,links,smtpserver='smtp.gmail.com:587'):
+
+		unsuccessful_emails = []
+		login = 'pollingapplication42'
+		password = 'doloripsum'
+
+		server = smtplib.SMTP(smtpserver)
+		server.starttls()
+		server.login(login,password)
+
+		for each_link in links:
+			subject = 'Invitation to Vote on Poll'
+			message = 'Your link to vote on the poll is : ' + list(each_link.values())[0]
+			status = self.send_email( server, 'Polling Application' ,list(each_link)[0],subject,message)
+			#TODO : Figure out how to get the invalid addresses back so you can alert the user email wasn't sent to them
+
+		server.quit()
+		return 
+
+	def preprocessing(self,participants):
+
+		participant_list = participants.split(",")
+
+		if(len(participant_list) == 1):
+			participant_list_new = participants.split(" ")
+			if(len(participant_list_new) > 1):
+				return None
+
+		no_space_participants = [x.strip() for x in participant_list]
+
+		return no_space_participants
 
 	@protected
 	async def post(self):
@@ -373,16 +408,29 @@ class CreatePollHandler(BaseHandler):
 		participants = self.get_argument("participants")
 		username = self.get_secure_cookie("user").decode('ascii')
 
-		validation_error = self.check_validity(participants)
+		participant_list = self.preprocessing(participants) 
+
+		if participant_list == None:
+			self.render('createpoll.html',error='Participant e-mails filled incorrectly! Please rectify!')
+			return
+
+		validation_error = self.check_validity(participant_list)
 
 		if(validation_error != None):
 			self.render('createpoll.html',error=validation_error)
 			return
 
-		user_collection = async_db.polls
-		insert_id = await self.add_to_database(user_collection,title,question,choices,username)
+		choice_dict = {}
+		for i in range(len(choices)):
+			choice_dict[str(i)] = choices[i]
 
-		all_links = self.generating_user_links(participants,insert_id)
+		user_collection = async_db.polls
+
+		insert_id = await self.add_to_database(user_collection,title,question,choice_dict,username)
+
+		all_links = self.generating_user_links(participant_list,insert_id)
+
+		emails_not_sent = self.send_participant_emails(all_links)
 
 		sync_db.polls.update_one({"_id":insert_id.inserted_id}, {'$push': {'participant_links': {"$each": all_links}}})
 
@@ -390,21 +438,103 @@ class CreatePollHandler(BaseHandler):
 
 		self.redirect("/uniquepollid")
 
-class PollIdHandler(BaseHandler):
+class ServePollHandler(tornado.web.RequestHandler):
 
-	@protected
-	@if_poll_created
-	def get(self):
-		
+	def decrypt_link(self,string_to_decrypt):
+
+		key, iv = read_AES_keys()
+		cipher = Cipher(algorithms.AES(key), modes.CBC(iv), default_backend())
+		decryptor = cipher.decryptor()
+
+		try:
+			string_to_decrypt = bytes.fromhex(string_to_decrypt)
+			padded_plaintext = decryptor.update(string_to_decrypt) + decryptor.finalize()
+		except ValueError:
+			return None
+
+		unpadder = padding.PKCS7(128).unpadder()
+		plaintext = unpadder.update(padded_plaintext) + unpadder.finalize()
+
+		return plaintext
+
+	def get_poll(self,collection,poll_id):
+
+		result = collection.find_one({'_id':ObjectId(poll_id)})
+		return result
+
+	def collect_public_keys(self,filename_list):
+		all_keys = []
+		for each_file in filename_list:
+			with open(each_file, "rb") as key_file:
+				public_key = serialization.load_pem_public_key(
+					key_file.read(),
+					backend=default_backend()
+					)
+				pem = public_key.public_bytes(
+					encoding=serialization.Encoding.PEM,
+					format=serialization.PublicFormat.SubjectPublicKeyInfo
+					)
+				pem = pem.decode()
+				pem = pem.replace('\n','')
+				all_keys.append(pem);
+
+		return all_keys
+
+	def get(self,poll_link):
+
+		try:
+			decrypted_plaintext = self.decrypt_link(poll_link)
+			if(decrypted_plaintext == None):
+				self.render('404.html')
+				return
+
+			decrypted_list = decrypted_plaintext.decode().split("&")
+		except UnicodeDecodeError:
+			self.render('404.html')
+			return
+
+		#Additional check to make sure even if some fake ciphertext does get decrypted, it should split in exactly two pieces or else it'll 
+		#be rejected.
+		if(len(decrypted_list)!=2):
+			self.render('404.html')
+			return
+
+		poll_id = decrypted_list[0]
+		participant_email = decrypted_list[1]
+
+		poll_id = poll_id.split("=")[1]
+		participant_email = participant_email.split("=")[1]
+
+		poll_collection = sync_db.polls
+		poll_document = self.get_poll(poll_collection,poll_id)
+
+		if(poll_document == None):
+			self.render('404.html')
+			return
+
+		public_keys = self.collect_public_keys(PUBLIC_KEYS)
+
+		self.render('viewpoll.html',title=poll_document['title'],question=poll_document['question'],choices=poll_document['choices'],public_keys=public_keys,error='')
+
 		return
+
+	def post(self,poll_link):
+		encrypted_shares = self.get_argument("choice") #Gets the first input with that name
+
+		share_list = encrypted_shares.split(",")
+
+
+
+
+		print(share_list)
 
 class ExistingPollsHandler(BaseHandler):
 	""" ExistingPollsHandler():
 	Class that handles /existingpolls
 	"""
 
-	def get_user_polls(self,user):
-		result = sync_db.polls.find({"username":user})
+	def get_user_polls(self,collection,user):
+		result = collection.find({"username":user})
 		return result
 
 	@protected
@@ -413,7 +543,9 @@ class ExistingPollsHandler(BaseHandler):
 		Renders the existingpolls page. uses the decorator to make sure the user is logged in first.
 		"""
 		username = self.get_secure_cookie("user").decode('ascii')
-		all_polls = self.get_user_polls(username)
+
+		poll_collection = sync_db.polls
+		all_polls = self.get_user_polls(poll_collection,username)
 
 		self.render('existingpolls.html',all_the_polls=all_polls,error='')
 		return
@@ -487,7 +619,7 @@ def recieve_public_keys(port):
 
 		if(counter == NUMBER_OF_SERVERS):
 			break
-
+			
 	sock.close()
 
 
@@ -517,9 +649,9 @@ if __name__ == '__main__':
 			(r'/signin', SignInHandler),
 			(r'/postlogin',PostLoginHandler),
 			(r'/createpoll',CreatePollHandler),
-			(r'/uniquepollid',PollIdHandler),
 			(r'/existingpolls',ExistingPollsHandler),
-			(r'/logout', LogoutHandler)
+			(r'/logout', LogoutHandler),
+			(r'/get_poll/(\w+)', ServePollHandler),
 		],
 		template_path = os.path.join(os.path.dirname(__file__),"templates"),
 		static_path = os.path.join(os.path.dirname(__file__),"static"),

@@ -66,7 +66,7 @@
 
 			<!-- DIV for submitting the form -->
 			<div id="submit-form" class="row">	      	
-	    		<button type="submit" class="text-center">Create Poll</button>
+	    		<button type="submit" class="text-center create_poll">Create Poll</button>
 	    	</div>
 
 		</form>
@@ -76,6 +76,14 @@
 <script>
 	$(document).ready(function(){
 		var wrapper = $("#choices");
+
+		$(".create_poll").click(function(e){
+			var number_of_choices = $('#choices .row').length;
+			if(number_of_choices<2){
+				e.preventDefault();
+				alert("You need atleast 2 options for it to be a poll!");
+			}
+		})
 
 		//Adds a choice DIV if the add button is clicked.
 		$(".add").click(function(){

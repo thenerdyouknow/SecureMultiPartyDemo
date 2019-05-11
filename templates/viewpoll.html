@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<head>
+	<link rel="stylesheet" href=" {{ static_url('viewpoll.css') }}">
+	<script src="{{ static_url('jsencrypt-master/bin/jsencrypt.min.js') }}"></script>
+
+	{% module cdn_includes() %}
+
+	<title>Profile</title>
+</head>
+<body>
+	{% module navbar() %}
+	<div class="container">
+		<!-- Display any errors, if needed -->
+		{% if error %}
+			<span style="color: red">Error: {{ error }}</span>
+		{% end %}
+
+		<form method="post" id="poll_form">
+
+			<h4 class="headings"> Title : </h4>
+			<div class="row">
+				<div class="col">
+					{{ title }}
+				</div>
+			</div>
+			<!-- DIV for the question -->
+			<h4 class="headings"> Question : </h4>
+    		<div id="question-div" class="row">
+        		<div class="col">
+        			{{ question }}
+				</div>
+    		</div>
+
+    		<!-- DIV for the choices -->
+			<h4> Choices : </h4>
+    		{% set i = 0 %}
+    		{% for key,value in choices.items() %}
+    		<div class="row gen_choice">
+    			<div class="col">
+   					<input id="poll_choice" type="radio" name="choice" value={{ key }}>{{ value }}<br>
+   				</div>
+   			</div>
+  			{% end %}
+   	
+    		<!-- INCLUDE for xsrf security -->
+			{% module xsrf_form_html() %}
+
+			<!-- DIV for submitting the form -->
+			<div id="submit-form" class="row">	      	
+	    		<button type="submit" class="text-center submit_poll">Submit Answer</button>
+	    	</div>
+
+		</form>
+	</div>
+</body>
+</html>
+<script type="text/javascript">
+
+$(document).ready(function(){
+
+	var NUMBER_OF_SERVERS = 3;
+	var THRESHOLD_VALUE = 2;
+
+	// Taken from https://stackoverflow.com/questions/1527803/generating-random-whole-numbers-in-javascript-in-a-specific-range
+	function getRandomInt(min, max) {
+    	min = Math.ceil(min);
+    	max = Math.floor(max);
+    	return Math.floor(Math.random() * (max - min + 1)) + min;
+	}
+
+	function pick_coefficients(original_value){
+		var polynomial_coefficients = [];
+		polynomial_coefficients.push(original_value);
+		for(var i = 0; i< THRESHOLD_VALUE-1; i++){
+			var temp_value = getRandomInt(100,10000);
+			polynomial_coefficients.push(temp_value);
+		}
+		return polynomial_coefficients;
+	}
+
+	function computing_shares(polynomial_coefficients,prime){
+		shares = [];
+		for(var i=0; i< NUMBER_OF_SERVERS; i++){
+			var x_coordinate = getRandomInt(100,10000);
+			var y_coordinate = 0;
+			for(var j=0; j< polynomial_coefficients.length; j++){
+				y_coordinate = (y_coordinate + (polynomial_coefficients[j] * Math.pow(x_coordinate,j)))%prime;
+			}
+			shares.push([x_coordinate,y_coordinate]);
+		}
+		return shares;
+	}
+
+	function encrypt_shares(unencrypted_shares,public_keys){
+		encrypted_shares = []
+		var encrypt = new JSEncrypt();
+		for(var i=0;i< NUMBER_OF_SERVERS;i++){
+			encrypt.setPublicKey(public_keys[i]);
+			string_share = unencrypted_shares[i].join(',');
+			var encrypted = encrypt.encrypt(string_share);
+			encrypted_shares.push(encrypted);
+		}
+		return encrypted_shares;
+	}
+
+	function secret_sharing(original_value,public_keys){
+		P = 1613;
+		var polynomial_coefficients = pick_coefficients(original_value);
+		var shares = computing_shares(polynomial_coefficients,P);
+		encrypted_shares = encrypt_shares(shares,public_keys);
+		return encrypted_shares
+	}
+
+	function get_public_keys(){
+		public_keys = []
+		{% for each_key in public_keys %}
+			public_keys.push("{{ each_key }}");
+		{% end %}
+		return public_keys;
+	} 
+
+	$('form').submit(function(e){
+		var value_found = parseInt($('input[name=choice]:checked').val());
+		var public_keys = get_public_keys();
+		shares = secret_sharing(value_found,public_keys);
+		document.getElementById("poll_choice").value = shares;
+	});
+});
+</script>
