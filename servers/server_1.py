@@ -1,6 +1,8 @@
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
+from pymongo import MongoClient
+import motor.motor_tornado
 import os
 import time
 import socket
@@ -29,22 +31,15 @@ def generate_keys():
 		open_file.write(private_pem)
 
 def send_file(socket,filename):
-
 	file_size = os.path.getsize(filename)
-
 	initial_metadata = (str(file_size) + ',' + filename).encode()
-
 	socket.send(initial_metadata)
 	time.sleep(1)
-	
 	file_to_send = open(filename,'r')
 	while file_size>0:
 		temp_data = file_to_send.read(1024)
 		socket.send(temp_data.encode())
 		file_size -= len(temp_data)
-
-	socket.close()
-
 
 #Only run once on startup if needed, but for now just manually generating and
 #commenting this out.
@@ -60,7 +55,13 @@ except socket.error as err:
 
 socket.connect((main_server_IP,main_server_port))
 
-signal = socket.recv(1024)
+while True:
+	signal = socket.recv(1024)
+	
+	if(signal.decode()=='Send public key!'):
+		send_file(socket,'public_key_1.pem')
 
-if(signal.decode()=='Send public key!'):
-	send_file(socket,'public_key_1.pem')
+	if(signal.decode()=='Sending share!'):
+		recieve_share(socket)
+
+
