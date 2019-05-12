@@ -43,7 +43,13 @@ def send_file(socket,filename):
 		socket.send(temp_data.encode())
 		file_size -= len(temp_data)
 
-	socket.close()
+def recieve_share(sock):
+	total_string = ''
+	data = sock.recv(1024)
+	while data:
+		total_string += data.decode()
+		data = sock.recv(1024)
+	return data
 
 
 #Only run once on startup if needed, but for now just manually generating and
@@ -51,15 +57,25 @@ def send_file(socket,filename):
 # generate_keys()
 
 main_server_IP = '127.0.0.1'
-main_server_port = 8105
+main_server_port = 8109
 
-try:
-	socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-except socket.error as err:
-	raise err
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-socket.connect((main_server_IP,main_server_port))
-signal = socket.recv(1024)
+sock.connect((main_server_IP,main_server_port))
 
-if(signal.decode()=='Send public key!'):
-	send_file(socket,'public_key_3.pem')
+while True:
+	signal = ''
+	signal = sock.recv(1024)
+
+	if(signal.decode() == ''):
+		sock.connect((main_server_IP,main_server_port))
+
+	if(signal.decode()=='Send public key!'):
+		send_file(sock,'public_key_3.pem')
+
+	print(signal)
+
+	if(signal.decode()=='Sending shares!'):
+		share = recieve_share(sock)
+		print(share)
+

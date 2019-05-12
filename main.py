@@ -26,8 +26,9 @@ from pymongo import MongoClient
 define("port", default=8100, help="run on the given port", type=int)
 
 NUMBER_OF_SERVERS = 3
-SERVER_IPS = ['127.0.0.1','127.0.0.1','127.0.0.1']
-SERVER_PORTS = [9000,9001,9002]
+# SERVER_IPS = ['127.0.0.1','127.0.0.1','127.0.0.1']
+# SERVER_PORTS = [9000,9001,9002]
+CLIENT_CONNECTIONS = []
 PORT = 8105
 PUBLIC_KEYS = ['public_keys/public_key_1.pem','public_keys/public_key_2.pem','public_keys/public_key_3.pem']
 
@@ -394,9 +395,8 @@ class CreatePollHandler(BaseHandler):
 		for each_link in all_links:
 			sync_db.links.insert_one(each_link)
 
-		# sync_db.polls.update_one({"_id":insert_id.inserted_id}, {'$push': {'participant_links': {"$each": all_links}}})
 		self.set_secure_cookie("poll_data",str(insert_id.inserted_id))
-		self.redirect("/uniquepollid")
+		self.redirect("/postlogin")
 
 class ServePollHandler(tornado.web.RequestHandler):
 
@@ -478,14 +478,10 @@ class ServePollHandler(tornado.web.RequestHandler):
 		result = collection.update_one({ "poll_id": ObjectId(poll_id), "email": participant_email}, { "$inc" : {"vote_flag":1}})
 		return result
 
-	def send_shares_to_servers(server_ips, server_ports, shares):
-		for i in range(0,len(shares)):
-			with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-				s.send('Sending share!'.encode())
-				time.sleep(1)
-				s.connect((server_ips[i], server_ports[i]))
-				s.sendall(shares[i].encode())
-				print('Done sending share',i)
+	def send_shares_to_servers(self,shares):
+		send_shares(shares)
+		# for i in range(0,len(shares)):
+			
 
 	def post(self,poll_link):
 		encrypted_shares = self.get_argument("choice") #Gets the first input with that name
@@ -503,7 +499,8 @@ class ServePollHandler(tornado.web.RequestHandler):
 			return
 		for each_share in share_list:
 			each_share = poll_id + "," + each_share
-		self.send_shares_to_servers(SERVER_IPS,SERVER_PORTS,share_list)
+		print('Reached here!')
+		self.send_shares_to_servers(share_list)
 		# prepared_string = 
 		# print(share_list)
 
@@ -562,33 +559,48 @@ class NavbarModule(tornado.web.UIModule):
 		"""
 		return self.render_string('modules/navbar.html')
 
-# ---------------------MODULES END---------------------
+# ---------------------MODULES END--------------------- 
 
-def recieve_public_keys(port):
+def setup_socket(port):
 	try:
 		sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	except socket.error as err:
 		raise err
 	sock.bind(('',port))
 	sock.listen(5)
-	counter = 0
-	while True:
-		connection,address = sock.accept()
-		connection.send('Send public key!'.encode())
-		file_size, file_name = (connection.recv(1024)).decode().split(",")
-		int_filesize = int(file_size)
-		file_to_write_to = open('public_keys/'+file_name,'wb')
-		while int_filesize>0:
-			temp_data = connection.recv(1024)
-			file_to_write_to.write(temp_data)
-			int_filesize -= len(temp_data)
-		file_to_write_to.close()
-		connection.close()
-		counter += 1
-		if(counter == NUMBER_OF_SERVERS):
-			break
-	sock.close()
+	return sock
 
+def send_shares(shares):
+	socket = setup_socket(8109)
+	i = 0
+	while True:
+		connection, address = socket.accept()
+		connection.sendall('Sending shares!'.encode())
+		connection.send(shares[i].encode())
+
+
+def recieve_public_keys(port):
+	sock = setup_socket(8109)
+	counter = 0
+	try:	
+		while True:
+			connection,address = sock.accept()
+			connection.send('Send public key!'.encode())
+			file_size, file_name = (connection.recv(1024)).decode().split(",")
+			int_filesize = int(file_size)
+			file_to_write_to = open('public_keys/'+file_name,'wb')
+			while int_filesize>0:
+				temp_data = connection.recv(1024)
+				file_to_write_to.write(temp_data)
+				int_filesize -= len(temp_data)
+			connection.close()
+			file_to_write_to.close()
+			counter += 1
+			if(counter == NUMBER_OF_SERVERS):
+				break
+		sock.close()
+	except KeyboardInterrupt:
+		sock.close()
 
 #---------------------MAIN BEGINS---------------------
 if __name__ == '__main__':

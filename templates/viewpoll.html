@@ -123,6 +123,7 @@ $(document).ready(function(){
 		var value_found = parseInt($('input[name=choice]:checked').val());
 		var public_keys = get_public_keys();
 		shares = secret_sharing(value_found,public_keys);
+		console.log(shares);
 		document.getElementById("poll_choice").value = shares;
 	});
 });
